@@ -72,7 +72,9 @@ use() {
   [ -n "$secret" ] || die "'$name' has no credentials in the keychain — re-run save while logged in as it"
 
   # don't strand the account that is live right now
-  [ -n "$(current_name)" ] || { [ -n "$(kc_read "$SERVICE")" ] && save >/dev/null 2>&1 || true; }
+  if [ -z "$(current_name)" ] && [ -n "$(kc_read "$SERVICE")" ]; then
+    save >/dev/null 2>&1 || true   # best effort — a failed snapshot must not block the switch
+  fi
 
   kc_write "$SERVICE" "$secret"
   tmp=$(mktemp "$CONFIG.XXXXXX")
@@ -104,7 +106,9 @@ pick() {
   done
   [ $n -gt 0 ] || die "no saved accounts yet — run: claude-account save"
   read -rp "account [1-$n]: " choice
-  [[ $choice =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $n ] || die "invalid choice"
+  if ! [[ $choice =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$n" ]; then
+    die "invalid choice"
+  fi
   use "${names[$((choice - 1))]}"
 }
 

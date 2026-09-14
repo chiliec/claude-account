@@ -1,0 +1,12 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    # needs a real login keychain — selftest uses throwaway service names
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck claude-account
+      - run: ./claude-account selftest

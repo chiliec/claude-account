@@ -3,10 +3,16 @@ name: ci
 on: [push, pull_request]
 
 jobs:
-  test:
-    # needs a real login keychain — selftest uses throwaway service names
-    runs-on: macos-latest
+  lint:
+    # shellcheck is preinstalled on the ubuntu image, not on macos
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: shellcheck claude-account
+
+  test:
+    # needs a real keychain — selftest uses throwaway service names
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
       - run: ./claude-account selftest

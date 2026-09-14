@@ -1,5 +1,7 @@
 # claude-account
 
+[![ci](https://github.com/chiliec/claude-account/actions/workflows/ci.yml/badge.svg)](https://github.com/chiliec/claude-account/actions/workflows/ci.yml)
+
 Switch between multiple authorized Claude Code logins on macOS, without re-authorizing every time.
 
 Claude Code stores exactly one login. `/login` with a second account silently overwrites the

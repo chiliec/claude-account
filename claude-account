@@ -71,9 +71,10 @@ use() {
   secret=$(kc_read "$SERVICE:$name") || true
   [ -n "$secret" ] || die "'$name' has no credentials in the keychain — re-run save while logged in as it"
 
-  # don't strand the account that is live right now
-  if [ -z "$(current_name)" ] && [ -n "$(kc_read "$SERVICE")" ]; then
-    save >/dev/null 2>&1 || true   # best effort — a failed snapshot must not block the switch
+  # re-snapshot the live account, saved or not: Claude Code rotates the refresh token on
+  # every refresh, so an old snapshot holds a revoked one and comes back as "login expired"
+  if [ -n "$(kc_read "$SERVICE")" ]; then
+    save "$(current_name)" >/dev/null 2>&1 || true   # best effort — must not block the switch
   fi
 
   kc_write "$SERVICE" "$secret"
@@ -145,6 +146,11 @@ selftest() {
   [ "$(jq -r .oauthAccount.emailAddress "$tmp/config.json")" = alice@example.com ] || die "selftest: email not switched"
   [ "$(jq -r .keep "$tmp/config.json")" = me ] || die "selftest: clobbered unrelated config keys"
   [ "$("$self" list | grep -c '^\*')" = 1 ] || die "selftest: current account not marked"
+
+  # a saved account's rotated token must be re-snapshotted, not reverted to the stale copy
+  kc_write "$svc" token-uid-a-rotated
+  "$self" use bob >/dev/null
+  [ "$(kc_read "$svc:alice")" = token-uid-a-rotated ] || die "selftest: rotated token of saved account lost"
 
   # a login that was never saved must be snapshotted before being switched away from
   login carol@example.com uid-c

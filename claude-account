@@ -6,7 +6,7 @@
 # re-authorized. This keeps a per-account copy of both and swaps them back in.
 #
 #   claude-account              pick an account interactively
-#   claude-account list
+#   claude-account list         * = live; date = refresh-token expiry (re-/login after it)
 #   claude-account save [name]  snapshot the account you are logged in as now
 #   claude-account use <name>
 #   claude-account rm <name>
@@ -36,6 +36,12 @@ kc_write() {
 }
 
 cfg() { jq -r "$1 // empty" "$CONFIG" 2>/dev/null; }
+
+# refresh-token expiry of a credential blob on stdin, local time
+expiry() {
+  local ms; ms=$(jq -r '.claudeAiOauth.refreshTokenExpiresAt // empty' 2>/dev/null) || true
+  if [ -n "$ms" ]; then date -r $((ms / 1000)) '+%Y-%m-%d %H:%M'; else echo '?'; fi
+}
 
 slug() { printf '%s' "${1%%@*}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' | sed 's/-*$//'; }
 
@@ -89,9 +95,12 @@ list() {
   shopt -s nullglob
   local files=("$STORE"/*.json)
   [ ${#files[@]} -gt 0 ] || die "no saved accounts yet — run: claude-account save"
+  local svc
   for f in "${files[@]}"; do
     name=$(basename "$f" .json)
-    printf '%s %-16s %s %s\n' "$([ "$name" = "$cur" ] && echo '*' || echo ' ')" "$name" \
+    svc="$SERVICE:$name"; [ "$name" = "$cur" ] && svc=$SERVICE   # live item is the fresh one
+    printf '%s %-16s %-16s %s %s\n' "$([ "$name" = "$cur" ] && echo '*' || echo ' ')" "$name" \
+      "$(kc_read "$svc" | expiry)" \
       "$(jq -r '.oauthAccount.emailAddress // "?"' "$f")" \
       "$(jq -r '.oauthAccount.organizationName // ""' "$f")"
   done
@@ -156,6 +165,9 @@ selftest() {
   login carol@example.com uid-c
   "$self" use bob >/dev/null
   [ "$(kc_read "$svc:carol")" = token-uid-c ] || die "selftest: unsaved live account was stranded"
+
+  kc_write "$svc:alice" '{"claudeAiOauth":{"expiresAt":1,"refreshTokenExpiresAt":0}}'
+  [[ $(TZ=UTC "$self" list) =~ alice\ +1970-01-01\ 00:00 ]] || die "selftest: expiry not listed"
 
   "$self" rm bob >/dev/null
   [ -e "$tmp/accounts/bob.json" ] && die "selftest: rm left the profile behind"
